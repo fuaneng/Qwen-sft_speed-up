@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>训练日志可视化工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#165DFF',
+            secondary: '#7B61FF',
+            success: '#00B42A',
+            warning: '#FF7D00',
+            danger: '#F53F3F',
+            dark: '#1D2129',
+            light: '#F2F3F5',
+          },
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .chart-container {
+        position: relative;
+        height: 400px;
+        width: 100%;
+      }
+      .transition-custom {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .card-shadow {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+      .btn-hover {
+        @apply hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300;
+      }
+    }
+  </style>
+</head>
+<body class="font-inter bg-gray-50 text-dark min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- 头部区域 -->
+    <header class="mb-8 text-center">
+      <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold text-primary mb-2">训练日志可视化工具</h1>
+      <p class="text-gray-600 max-w-2xl mx-auto">上传包含训练日志的JSON文件，可视化展示训练过程中的关键指标变化趋势</p>
+    </header>
+    
+    <!-- 文件上传区域 -->
+    <div class="mb-8 bg-white rounded-xl p-6 card-shadow transition-custom">
+      <div class="flex flex-col md:flex-row items-center gap-4">
+        <div class="flex-1">
+          <label for="file-upload" class="cursor-pointer bg-primary/10 text-primary border-2 border-primary/30 rounded-lg p-4 block text-center transition-custom hover:bg-primary/20">
+            <i class="fa fa-upload text-2xl mb-2"></i>
+            <p class="font-medium">点击或拖拽文件到此处上传</p>
+            <p class="text-sm text-gray-500 mt-1">支持JSON格式文件</p>
+          </label>
+          <input id="file-upload" type="file" accept=".json" class="hidden" />
+        </div>
+        
+        <div class="flex-1 md:w-64">
+          <select id="log-field" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-custom">
+            <option value="loss">Loss (损失值)</option>
+            <option value="grad_norm">Grad Norm (梯度范数)</option>
+            <option value="learning_rate">Learning Rate (学习率)</option>
+            <option value="epoch">Epoch</option>
+          </select>
+        </div>
+        
+        <div class="flex-1 md:w-64">
+          <div class="flex items-center gap-3">
+            <span class="text-gray-600">平滑度:</span>
+            <input id="smoothing" type="range" min="0" max="0.9" step="0.05" value="0.4" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary">
+            <span id="smoothing-value" class="text-sm font-medium text-primary">0.4</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 训练元数据区域 -->
+    <div id="metadata-container" class="mb-8 bg-white rounded-xl p-6 card-shadow transition-custom hidden">
+      <h2 class="text-xl font-semibold mb-4 flex items-center">
+        <i class="fa fa-info-circle text-warning mr-2"></i>
+        训练元数据
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-500">当前Epoch</p>
+          <p id="metadata-epoch" class="text-lg font-bold text-primary">-</p>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-500">全局步数</p>
+          <p id="metadata-global-step" class="text-lg font-bold text-primary">-</p>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-500">最大步数</p>
+          <p id="metadata-max-steps" class="text-lg font-bold text-primary">-</p>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-500">训练批次大小</p>
+          <p id="metadata-batch-size" class="text-lg font-bold text-primary">-</p>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-500">总训练轮数</p>
+          <p id="metadata-train-epochs" class="text-lg font-bold text-primary">-</p>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-500">总浮点运算</p>
+          <p id="metadata-flos" class="text-lg font-bold text-primary">-</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 图表展示区域 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div class="bg-white rounded-xl p-6 card-shadow transition-custom">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <i class="fa fa-line-chart text-primary mr-2"></i>
+          训练指标趋势
+        </h2>
+        <div class="chart-container" id="main-chart-container">
+          <canvas id="main-chart"></canvas>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl p-6 card-shadow transition-custom">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <i class="fa fa-bar-chart text-secondary mr-2"></i>
+          指标统计
+        </h2>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <p class="text-sm text-gray-500">当前值</p>
+            <p id="current-value" class="text-2xl font-bold text-primary">-</p>
+          </div>
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <p class="text-sm text-gray-500">最小值</p>
+            <p id="min-value" class="text-2xl font-bold text-success">-</p>
+          </div>
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <p class="text-sm text-gray-500">最大值</p>
+            <p id="max-value" class="text-2xl font-bold text-danger">-</p>
+          </div>
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <p class="text-sm text-gray-500">平均值</p>
+            <p id="avg-value" class="text-2xl font-bold text-secondary">-</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 数据表格区域 -->
+    <div class="bg-white rounded-xl p-6 card-shadow transition-custom mb-8">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold flex items-center">
+          <i class="fa fa-table text-warning mr-2"></i>
+          训练数据
+        </h2>
+        <div class="flex gap-2">
+          <button id="export-csv" class="bg-success text-white px-4 py-2 rounded-lg flex items-center btn-hover">
+            <i class="fa fa-download mr-2"></i>导出CSV
+          </button>
+          <button id="toggle-table" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex items-center btn-hover">
+            <i class="fa fa-chevron-up mr-2"></i>收起
+          </button>
+        </div>
+      </div>
+      
+      <div id="table-container" class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">步数</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Epoch</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">损失值</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">梯度范数</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">学习率</th>
+            </tr>
+          </thead>
+          <tbody id="data-table" class="bg-white divide-y divide-gray-200">
+            <!-- 数据将通过JavaScript动态填充 -->
+            <tr class="text-center">
+              <td colspan="5" class="px-6 py-12 text-gray-500">请上传JSON文件以显示数据</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- 底部信息 -->
+    <footer class="text-center text-gray-500 text-sm py-4">
+      <p>训练日志可视化工具 | 使用Chart.js构建</p>
+    </footer>
+  </div>
+
+  <script>
+    // 全局变量
+    let logData = null;
+    let mainChart = null;
+    let selectedField = 'loss';
+    let smoothingFactor = 0.4;
+    let fullJsonData = null;
+    
+    // DOM元素
+    const fileUpload = document.getElementById('file-upload');
+    const logFieldSelect = document.getElementById('log-field');
+    const smoothingSlider = document.getElementById('smoothing');
+    const smoothingValue = document.getElementById('smoothing-value');
+    const mainChartCanvas = document.getElementById('main-chart');
+    const dataTable = document.getElementById('data-table');
+    const exportCsvBtn = document.getElementById('export-csv');
+    const toggleTableBtn = document.getElementById('toggle-table');
+    const tableContainer = document.getElementById('table-container');
+    const currentValueEl = document.getElementById('current-value');
+    const minValueEl = document.getElementById('min-value');
+    const maxValueEl = document.getElementById('max-value');
+    const avgValueEl = document.getElementById('avg-value');
+    const metadataContainer = document.getElementById('metadata-container');
+    const metadataEpoch = document.getElementById('metadata-epoch');
+    const metadataGlobalStep = document.getElementById('metadata-global-step');
+    const metadataMaxSteps = document.getElementById('metadata-max-steps');
+    const metadataBatchSize = document.getElementById('metadata-batch-size');
+    const metadataTrainEpochs = document.getElementById('metadata-train-epochs');
+    const metadataFlos = document.getElementById('metadata-flos');
+    
+    // 初始化图表
+    function initChart() {
+      if (mainChart) {
+        mainChart.destroy();
+      }
+      
+      if (!logData || logData.length === 0) {
+        return;
+      }
+      
+      // 准备数据
+      const steps = logData.map(item => item.step);
+      const originalValues = logData.map(item => item[selectedField]);
+      const smoothedValues = smoothData(originalValues, smoothingFactor);
+      
+      // 创建图表
+      mainChart = new Chart(mainChartCanvas, {
+        type: 'line',
+        data: {
+          labels: steps,
+          datasets: [
+            {
+              label: '原始数据',
+              data: originalValues,
+              borderColor: 'rgba(22, 93, 255, 0.3)',
+              backgroundColor: 'rgba(22, 93, 255, 0.1)',
+              borderWidth: 1,
+              pointRadius: 2,
+              pointHoverRadius: 4,
+              tension: 0.1,
+              fill: false
+            },
+            {
+              label: '平滑数据',
+              data: smoothedValues,
+              borderColor: 'rgba(123, 97, 255, 1)',
+              backgroundColor: 'rgba(123, 97, 255, 0.1)',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.3,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: 500,
+            easing: 'easeOutQuart'
+          },
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                boxWidth: 6
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(29, 33, 41, 0.8)',
+              padding: 10,
+              cornerRadius: 8,
+              titleFont: {
+                size: 14,
+                weight: 'bold'
+              },
+              bodyFont: {
+                size: 13
+              },
+              callbacks: {
+                label: function(context) {
+                  let label = context.dataset.label || '';
+                  if (label) {
+                    label += ': ';
+                  }
+                  if (context.parsed.y !== null) {
+                    label += context.parsed.y.toFixed(6);
+                  }
+                  return label;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: '步数',
+                font: {
+                  weight: 'bold'
+                }
+              },
+              grid: {
+                display: true,
+                color: 'rgba(0, 0, 0, 0.05)'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: selectedField,
+                font: {
+                  weight: 'bold'
+                }
+              },
+              grid: {
+                display: true,
+                color: 'rgba(0, 0, 0, 0.05)'
+              },
+              ticks: {
+                callback: function(value) {
+                  return value.toFixed(6);
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      // 更新统计信息
+      updateStats(originalValues);
+    }
+    
+    // 平滑数据
+    function smoothData(data, alpha) {
+      if (!data || data.length === 0) return [];
+      if (alpha <= 0) return [...data];
+      
+      const result = [data[0]];
+      for (let i = 1; i < data.length; i++) {
+        result[i] = alpha * data[i] + (1 - alpha) * result[i - 1];
+      }
+      return result;
+    }
+    
+    // 更新统计信息
+    function updateStats(values) {
+      if (!values || values.length === 0) {
+        currentValueEl.textContent = '-';
+        minValueEl.textContent = '-';
+        maxValueEl.textContent = '-';
+        avgValueEl.textContent = '-';
+        return;
+      }
+      
+      const current = values[values.length - 1];
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const sum = values.reduce((acc, val) => acc + val, 0);
+      const avg = sum / values.length;
+      
+      currentValueEl.textContent = current.toFixed(6);
+      minValueEl.textContent = min.toFixed(6);
+      maxValueEl.textContent = max.toFixed(6);
+      avgValueEl.textContent = avg.toFixed(6);
+    }
+    
+    // 加载JSON文件
+    function loadJsonFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const jsonData = JSON.parse(event.target.result);
+          fullJsonData = jsonData;
+          
+          if (jsonData.log_history && Array.isArray(jsonData.log_history)) {
+            logData = jsonData.log_history;
+            renderTable();
+            initChart();
+            updateMetadata(jsonData);
+            metadataContainer.classList.remove('hidden');
+            showNotification('文件加载成功', 'success');
+          } else {
+            showNotification('JSON格式错误：未找到log_history数组', 'error');
+          }
+        } catch (error) {
+          showNotification('JSON解析错误：' + error.message, 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+    
+    // 更新元数据显示
+    function updateMetadata(data) {
+      metadataEpoch.textContent = data.epoch ? data.epoch.toFixed(4) : '-';
+      metadataGlobalStep.textContent = data.global_step || '-';
+      metadataMaxSteps.textContent = data.max_steps || '-';
+      metadataBatchSize.textContent = data.train_batch_size || '-';
+      metadataTrainEpochs.textContent = data.num_train_epochs || '-';
+      
+      if (data.total_flos) {
+        // 科学计数法格式化
+        const flos = parseFloat(data.total_flos);
+        metadataFlos.textContent = flos.toExponential(2);
+      } else {
+        metadataFlos.textContent = '-';
+      }
+    }
+    
+    // 渲染数据表格
+    function renderTable() {
+      if (!logData || logData.length === 0) {
+        dataTable.innerHTML = `
+          <tr class="text-center">
+            <td colspan="5" class="px-6 py-12 text-gray-500">请上传JSON文件以显示数据</td>
+          </tr>
+        `;
+        return;
+      }
+      
+      let html = '';
+      logData.forEach(item => {
+        html += `
+          <tr class="hover:bg-gray-50 transition-custom">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.step}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.epoch.toFixed(6)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.loss.toFixed(6)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.grad_norm.toFixed(6)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.learning_rate.toFixed(10)}</td>
+          </tr>
+        `;
+      });
+      
+      dataTable.innerHTML = html;
+    }
+    
+    // 导出CSV文件
+    function exportToCsv() {
+      if (!logData || logData.length === 0) {
+        showNotification('没有数据可导出', 'warning');
+        return;
+      }
+      
+      // 构建CSV内容
+      let csvContent = "步数,Epoch,损失值,梯度范数,学习率\n";
+      
+      logData.forEach(item => {
+        csvContent += `${item.step},${item.epoch},${item.loss},${item.grad_norm},${item.learning_rate}\n`;
+      });
+      
+      // 创建下载链接
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'training_log.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showNotification('CSV文件导出成功', 'success');
+    }
+    
+    // 显示通知
+    function showNotification(message, type = 'info') {
+      // 创建通知元素
+      const notification = document.createElement('div');
+      notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 ease-in-out opacity-0 translate-y-[-20px]`;
+      
+      // 设置通知样式和图标
+      let bgColor, textColor, icon;
+      switch (type) {
+        case 'success':
+          bgColor = 'bg-success';
+          textColor = 'text-white';
+          icon = 'fa-check-circle';
+          break;
+        case 'error':
+          bgColor = 'bg-danger';
+          textColor = 'text-white';
+          icon = 'fa-exclamation-circle';
+          break;
+        case 'warning':
+          bgColor = 'bg-warning';
+          textColor = 'text-white';
+          icon = 'fa-exclamation-triangle';
+          break;
+        default:
+          bgColor = 'bg-primary';
+          textColor = 'text-white';
+          icon = 'fa-info-circle';
+      }
+      
+      notification.classList.add(bgColor, textColor);
+      
+      // 设置通知内容
+      notification.innerHTML = `
+        <div class="flex items-center">
+          <i class="fa ${icon} mr-2"></i>
+          <span>${message}</span>
+        </div>
+      `;
+      
+      // 添加到页面
+      document.body.appendChild(notification);
+      
+      // 显示通知
+      setTimeout(() => {
+        notification.classList.remove('opacity-0', 'translate-y-[-20px]');
+      }, 10);
+      
+      // 自动关闭
+      setTimeout(() => {
+        notification.classList.add('opacity-0', 'translate-y-[-20px]');
+        setTimeout(() => {
+          document.body.removeChild(notification);
+        }, 300);
+      }, 3000);
+    }
+    
+    // 事件监听器
+    fileUpload.addEventListener('change', function(e) {
+      if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        if (file.type === 'application/json' || file.name.endsWith('.json')) {
+          loadJsonFile(file);
+        } else {
+          showNotification('请上传JSON格式的文件', 'error');
+        }
+      }
+    });
+    
+    logFieldSelect.addEventListener('change', function() {
+      selectedField = this.value;
+      initChart();
+    });
+    
+    smoothingSlider.addEventListener('input', function() {
+      smoothingFactor = parseFloat(this.value);
+      smoothingValue.textContent = smoothingFactor.toFixed(1);
+      initChart();
+    });
+    
+    exportCsvBtn.addEventListener('click', exportToCsv);
+    
+    toggleTableBtn.addEventListener('click', function() {
+      if (tableContainer.style.maxHeight) {
+        tableContainer.style.maxHeight = null;
+        this.innerHTML = '<i class="fa fa-chevron-up mr-2"></i>收起';
+      } else {
+        tableContainer.style.maxHeight = '100px';
+        this.innerHTML = '<i class="fa fa-chevron-down mr-2"></i>展开';
+      }
+    });
+    
+    // 初始渲染
+    renderTable();
+    
+    // 添加拖拽上传功能
+    document.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    
+    document.addEventListener('drop', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.type === 'application/json' || file.name.endsWith('.json')) {
+          fileUpload.files = e.dataTransfer.files;
+          loadJsonFile(file);
+        } else {
+          showNotification('请上传JSON格式的文件', 'error');
+        }
+      }
+    });
+  </script>
+</body>
+</html>
+    
