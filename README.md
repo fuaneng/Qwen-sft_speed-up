@@ -1,7 +1,5 @@
 # Qwen2-VL-2B-Instruct Lora 微调
 
-本节我们将简要介绍如何基于 `transformers` 和 `peft` 等框架，使用 Qwen2-VL-2B-Instruct 模型在 **COCO2014图像描述** 任务上进行 Lora 微调训练。Lora 是一种高效的微调方法，若需深入了解 Lora 的工作原理，可参考博客：[知乎|深入浅出 Lora](https://zhuanlan.zhihu.com/p/650197598)。
-
 ## 🌍 环境配置
 
 ```bash
@@ -17,9 +15,6 @@ pip install datasets==2.18.0
 pip install peft==0.13.2
 pip install qwen-vl-utils==0.0.8
 ```
-
-> 考虑到部分同学配置环境可能会遇到一些问题，我们在AutoDL平台准备了Qwen2-VL的环境镜像，点击下方链接并直接创建Autodl示例即可。
-> ***https://www.codewithgpu.com/i/datawhalechina/self-llm/qwen2-vl***
 
 ## 📚 准备数据集
 
@@ -127,6 +122,28 @@ for i in range(len(df)):
 with open('data_vl.json', 'w', encoding='utf-8') as f:
     json.dump(conversations, f, ensure_ascii=False, indent=2)
 ```
+
+3.5. **在同一目录下，用以下代码，将csv文件转换为json文件：**
+```python
+import json
+
+# 数据集样式
+
+        "id": f"identity_{i+1}",
+        "conversations": [
+            {
+                "from": "user",
+                "value": f"触发词:指令问题 <|vision_start|>{图片路径]}<|vision_end|>"
+            },
+            {
+                "from": "assistant", 
+                "value": "输出答案，对应图片的描述表达"
+            }
+        ]
+
+
+```
+
 
 此时目录下会多出两个文件：
 - coco-2024-dataset.csv
