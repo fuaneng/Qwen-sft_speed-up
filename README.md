@@ -123,13 +123,13 @@ with open('data_vl.json', 'w', encoding='utf-8') as f:
     json.dump(conversations, f, ensure_ascii=False, indent=2)
 ```
 
-3.5. **在同一目录下，用以下代码，将csv文件转换为json文件：**
+3.5. **这一步是将json文件转换为训练用的格式**
 ```python
 import json
 
 # 数据集样式
 
-        "id": f"identity_{i+1}",
+        "id": f"identity_1",
         "conversations": [
             {
                 "from": "user",
