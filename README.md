@@ -14,6 +14,10 @@ pip install accelerate==1.1.1
 pip install datasets==2.18.0
 pip install peft==0.13.2
 pip install qwen-vl-utils==0.0.8
+pip install vllm
+pip install transformers[torch]
+pip install torch
+pip install torchvision
 ```
 
 ## 📚 准备数据集
