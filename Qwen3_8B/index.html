@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件总结助手</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        /* Custom Scrollbar for dark theme */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+    <!-- Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-950 text-gray-300 font-sans antialiased">
+
+    <!-- 主布局：侧边栏和主内容区域 -->
+    <div class="flex h-screen w-full">
+
+        <!-- 左侧边栏：对话记录 -->
+        <div class="hidden lg:flex w-1/4 max-w-xs bg-gray-900 border-r border-gray-800 flex-col p-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-100">对话记录</h2>
+            </div>
+            <button id="new-chat-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md transition-colors flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                <span>新建对话</span>
+            </button>
+            <!-- 对话列表将在此处动态生成 -->
+            <div id="conversation-list" class="mt-4 flex-grow overflow-y-auto flex flex-col gap-2">
+                <p class="text-sm text-gray-500 text-center italic">未来的对话历史会显示在这里。</p>
+            </div>
+        </div>
+
+        <!-- 主内容区域 -->
+        <div class="flex-grow flex flex-col p-2 bg-gray-950">
+            <div class="flex-grow flex flex-col bg-gray-900 rounded-xl shadow-lg overflow-hidden">
+                <!-- 头部 -->
+                <div class="flex justify-between items-center p-4 bg-gray-800 rounded-t-xl">
+                    <h1 class="text-2xl font-bold text-gray-100">文件总结助手</h1>
+                    <button id="settings-btn" class="p-2 rounded-full hover:bg-gray-700 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.22 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- 聊天窗口 -->
+                <div id="chat-window" class="flex-grow p-4 overflow-y-auto flex flex-col gap-3">
+                    <!-- 初始欢迎信息 -->
+                    <div class="flex justify-start mb-3">
+                        <!-- Modified: Use max-w-[95%] for all messages -->
+                        <div class="max-w-[95%] text-gray-300">
+                            <p class="font-semibold text-gray-200">👋 欢迎使用文件总结助手！</p>
+                            <p>请上传一个文件，输入你的问题，然后点击发送来获取总结。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 输入表单区域 -->
+                <div class="p-4 border-t border-gray-800">
+                    <form id="summarize-form" class="flex flex-col gap-3">
+                        <!-- 文件上传和问题输入 -->
+                        <div class="flex items-center gap-3">
+                            <label for="file-upload" class="flex items-center justify-center cursor-pointer bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                上传文件
+                            </label>
+                            <span id="file-name" class="text-sm text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap flex-grow">未选择文件</span>
+                            <input id="file-upload" type="file" class="hidden" required>
+                        </div>
+
+                        <!-- 问题输入框 -->
+                        <textarea id="question-input" class="w-full h-10 px-3 py-2 rounded-md bg-gray-800 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none" placeholder="请输入你的问题..." required></textarea>
+                        
+                        <div class="flex items-center justify-between">
+                            <!-- 思考模式切换 -->
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="thinking-mode-toggle" class="h-4 w-4 rounded-md text-blue-600 bg-gray-800 border-gray-700 focus:ring-blue-600">
+                                <label for="thinking-mode-toggle" class="text-sm text-gray-400">启用思考模式 (Qwen3)</label>
+                            </div>
+                            
+                            <!-- 提交按钮 -->
+                            <button type="submit" id="submit-btn" class="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">
+                                <span id="button-text">发送</span>
+                                <span id="loading-spinner" class="hidden w-5 h-5 border-2 border-white border-t-blue-600 rounded-full animate-spin"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 高级设置模态框 -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-lg text-gray-200">
+            <h2 class="text-2xl font-bold mb-4">高级设置</h2>
+            <form id="settings-form" class="flex flex-col gap-4">
+                <div class="space-y-2">
+                    <label for="chunk-size" class="block text-sm font-medium text-gray-400">分块大小 (chunk_token_size)</label>
+                    <input type="number" id="chunk-size" name="chunk_token_size" class="w-full px-3 py-2 bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-600" value="2000">
+                </div>
+                <div class="space-y-2">
+                    <label for="temperature" class="block text-sm font-medium text-gray-400">温度 (temperature)</label>
+                    <input type="number" step="0.01" id="temperature" name="temperature" class="w-full px-3 py-2 bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-600" value="0.7">
+                </div>
+                <div class="space-y-2">
+                    <label for="top-p" class="block text-sm font-medium text-gray-400">Top P (top_p)</label>
+                    <input type="number" step="0.01" id="top-p" name="top_p" class="w-full px-3 py-2 bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-600" value="0.95">
+                </div>
+                <div class="space-y-2">
+                    <label for="top-k" class="block text-sm font-medium text-gray-400">Top K (top_k)</label>
+                    <input type="number" id="top-k" name="top_k" class="w-full px-3 py-2 bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-600" value="20">
+                </div>
+                <div class="space-y-2">
+                    <label for="sheet-name" class="block text-sm font-medium text-gray-400">Excel 表格名称 (sheet_name)</label>
+                    <input type="text" id="sheet-name" name="sheet_name" class="w-full px-3 py-2 bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="例如: Sheet1 (可选)">
+                </div>
+                <div class="flex justify-end gap-3 mt-4">
+                    <button type="button" id="close-settings-btn" class="py-2 px-4 bg-gray-600 hover:bg-gray-700 rounded-md transition-colors">取消</button>
+                    <button type="submit" class="py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors">保存并关闭</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript for UI Logic and API Calls -->
+    <script>
+        const chatWindow = document.getElementById('chat-window');
+        const summarizeForm = document.getElementById('summarize-form');
+        const fileUpload = document.getElementById('file-upload');
+        const fileNameSpan = document.getElementById('file-name');
+        const questionInput = document.getElementById('question-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const buttonText = document.getElementById('button-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const settingsForm = document.getElementById('settings-form');
+        const closeSettingsBtn = document.getElementById('close-settings-btn');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const conversationList = document.getElementById('conversation-list');
+
+        // Global settings object
+        let settings = {
+            chunk_token_size: 2000,
+            temperature: 0.7,
+            top_p: 0.95,
+            top_k: 20,
+            sheet_name: null
+        };
+        
+        // Function to create and append a message to the chat window
+        function addMessage(text, isUser = false) {
+            const messageContainer = document.createElement('div');
+            messageContainer.className = `flex mb-3 ${isUser ? 'justify-end' : 'justify-start'}`;
+
+            const messageContent = document.createElement('div');
+            // Modified: Apply conditional styles based on message sender
+            const commonClasses = 'max-w-[95%]';
+            if (isUser) {
+                messageContent.className = `${commonClasses} p-4 rounded-2xl shadow-md bg-blue-600 text-white`;
+            } else {
+                messageContent.className = `${commonClasses} text-gray-300`;
+            }
+            messageContent.innerText = text;
+
+            messageContainer.appendChild(messageContent);
+            chatWindow.appendChild(messageContainer);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        // Display the selected file name
+        fileUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileNameSpan.innerText = file.name;
+            } else {
+                fileNameSpan.innerText = '未选择文件';
+            }
+        });
+
+        // Toggle settings modal
+        settingsBtn.addEventListener('click', () => {
+            document.getElementById('chunk-size').value = settings.chunk_token_size;
+            document.getElementById('temperature').value = settings.temperature;
+            document.getElementById('top-p').value = settings.top_p;
+            document.getElementById('top-k').value = settings.top_k;
+            document.getElementById('sheet-name').value = settings.sheet_name || '';
+            settingsModal.style.display = 'flex';
+        });
+
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+        });
+
+        settingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            settings.chunk_token_size = parseInt(document.getElementById('chunk-size').value);
+            settings.temperature = parseFloat(document.getElementById('temperature').value);
+            settings.top_p = parseFloat(document.getElementById('top-p').value);
+            settings.top_k = parseInt(document.getElementById('top-k').value);
+            settings.sheet_name = document.getElementById('sheet-name').value || null;
+            settingsModal.style.display = 'none';
+            addMessage("高级设置已保存！", false);
+        });
+
+        // Function to save the current conversation
+        function saveCurrentConversation() {
+            const messages = Array.from(chatWindow.children).map(child => {
+                const isUser = child.querySelector('div').classList.contains('bg-blue-600');
+                const text = child.querySelector('div').innerText;
+                return { text, isUser };
+            });
+            // Don't save empty conversations or just the welcome message
+            if (messages.length > 1) {
+                const timestamp = new Date().toLocaleString();
+                const conversationKey = `conv_${Date.now()}`;
+                const conversation = {
+                    title: `对话记录 (${timestamp})`,
+                    messages: messages
+                };
+                localStorage.setItem(conversationKey, JSON.stringify(conversation));
+                renderConversations();
+            }
+        }
+
+        // Function to load and display a conversation
+        function loadConversation(key) {
+            const conversation = JSON.parse(localStorage.getItem(key));
+            if (conversation) {
+                chatWindow.innerHTML = '';
+                conversation.messages.forEach(msg => {
+                    addMessage(msg.text, msg.isUser);
+                });
+            }
+        }
+
+        // Function to render the list of saved conversations
+        function renderConversations() {
+            conversationList.innerHTML = '';
+            const keys = Object.keys(localStorage).filter(key => key.startsWith('conv_')).sort().reverse();
+            if (keys.length === 0) {
+                conversationList.innerHTML = `<p class="text-sm text-gray-500 text-center italic">还没有对话记录。</p>`;
+                return;
+            }
+
+            keys.forEach(key => {
+                const conversation = JSON.parse(localStorage.getItem(key));
+                const convDiv = document.createElement('div');
+                convDiv.className = 'py-2 px-3 bg-gray-700 hover:bg-gray-600 rounded-md cursor-pointer transition-colors';
+                convDiv.innerText = conversation.title;
+                convDiv.addEventListener('click', () => loadConversation(key));
+                conversationList.appendChild(convDiv);
+            });
+        }
+
+        // Handle form submission
+        summarizeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const file = fileUpload.files[0];
+            const question = questionInput.value.trim();
+            const enableThinking = document.getElementById('thinking-mode-toggle').checked;
+
+            // Display a message instead of an alert
+            if (!file) {
+                addMessage('请先上传一个文件。', false);
+                return;
+            }
+            if (!question) {
+                addMessage('请输入你的问题。', false);
+                return;
+            }
+
+            // Show user message and set loading state
+            addMessage(question, true);
+            addMessage("思考中...", false);
+            submitBtn.disabled = true;
+            buttonText.classList.add('hidden');
+            loadingSpinner.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('question', question);
+            formData.append('enable_thinking', enableThinking);
+            
+            // Append advanced settings
+            for (const key in settings) {
+                if (settings[key] !== null) {
+                    formData.append(key, settings[key]);
+                }
+            }
+
+            try {
+                const response = await fetch('http://127.0.0.1:5000/summarize', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                const data = await response.json();
+                
+                // Remove loading message
+                chatWindow.removeChild(chatWindow.lastChild);
+
+                if (response.ok) {
+                    addMessage(data.summary, false);
+                } else {
+                    addMessage(`错误：${data.error || '未知错误'}`, false);
+                }
+            } catch (error) {
+                // Remove loading message
+                chatWindow.removeChild(chatWindow.lastChild);
+                addMessage(`网络错误：无法连接到服务器。请确保后端服务正在运行。`, false);
+                console.error('Error:', error);
+            } finally {
+                // Reset form and loading state
+                questionInput.value = '';
+                fileUpload.value = '';
+                fileNameSpan.innerText = '未选择文件';
+                submitBtn.disabled = false;
+                buttonText.classList.remove('hidden');
+                loadingSpinner.classList.add('hidden');
+            }
+        });
+
+        // Handle new chat button click
+        newChatBtn.addEventListener('click', () => {
+            saveCurrentConversation(); // Save the current conversation
+            chatWindow.innerHTML = `
+                <div class="flex justify-start mb-3">
+                    <div class="max-w-[95%] text-gray-300">
+                        <p class="font-semibold text-gray-200">👋 欢迎使用文件总结助手！</p>
+                        <p>请上传一个文件，输入你的问题，然后点击发送来获取总结。</p>
+                    </div>
+                </div>
+            `;
+            questionInput.value = '';
+            fileUpload.value = '';
+            fileNameSpan.innerText = '未选择文件';
+        });
+
+        // Initial render of conversations on page load
+        document.addEventListener('DOMContentLoaded', renderConversations);
+
+    </script>
+</body>
+</html>
