@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*- 
+
 import os 
 import re 
 import time 
@@ -13,6 +15,11 @@ from transformers import AutoTokenizer, AutoModel
 from vllm import LLM, SamplingParams 
 from faiss import IndexFlatL2 
 
+# --- FastAPI 和 Pydantic 组件 --- 
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form 
+from fastapi.middleware.cors import CORSMiddleware 
+from pydantic import BaseModel 
+
 # --- LangChain 组件 --- 
 from langchain_text_splitters import RecursiveCharacterTextSplitter 
 
@@ -25,6 +32,8 @@ except ImportError as e:
     print(f"警告: 缺少文档解析库。详细信息: {e}") 
     fitz, Document, Presentation = None, None, None 
 
+
+# --- 将你的类和辅助函数放在这里 --- 
 
 # 获取可用GPU数量 
 def get_num_gpus_from_env(): 
@@ -44,6 +53,8 @@ class AdvancedRAGSummarizer:
     (已优化显存管理和数据类型处理) 
     """ 
 
+    # 保留你原始代码中的所有方法，只在需要的地方稍作调整 
+    # ... (此处省略，请将你提供的类代码完整复制到此处) ... 
     def __init__(self, model_name_or_path: str, embedding_model_name: str, max_model_len: int = 40960, enable_thinking: bool = True): 
         """ 
         初始化配置，但不立即加载模型以节省显存。 
@@ -275,7 +286,7 @@ class AdvancedRAGSummarizer:
             return f"✅ **处理完成！**\n\n" + "="*20 + " **综合总结** " + "="*20 + f"\n\n{final_summary}\n\n" + "="*20 + " **问题回答** " + "="*20 + f"\n\n{final_answer}" 
 
         except (ValueError, ImportError, RuntimeError) as e: 
-            return f"处理过程中发生错误: {e}" 
+            raise HTTPException(status_code=500, detail=f"处理过程中发生错误: {e}") 
         finally: 
             # **关键：确保任务结束时卸载所有模型** 
             self._unload_llm() 
@@ -340,36 +351,86 @@ class AdvancedRAGSummarizer:
         return full_text 
 
 
-# --- 脚本主入口 (保持不变) --- 
-if __name__ == "__main__": 
-    llm_model_path = r"/DATA/f60055380/Qwen3_8B_TL/Model/Qwen3-32B" 
-    embedding_model = r"/DATA/f60055380/Qwen3_8B_TL/Model/Qwen3-Embedding-8B" 
-    file_to_process = r"/DATA/f60055380/Qwen3_8B_TL/data/xlsx/问题集1200.xlsx" 
-    question = "总结不同维度不同分数的规律。" 
+# --- FastAPI 接口部分 --- 
+
+# 1. 实例化 FastAPI 应用 
+app = FastAPI( 
+    title="Advanced RAG Summarizer API", 
+    description="一个用于文档RAG检索和总结的高级API接口。", 
+    version="1.0.0", 
+) 
+# 2. 配置 CORS 中间件 
+app.add_middleware( 
+    CORSMiddleware, 
+    allow_origins=["*"], 
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"], 
+) 
+
+# 3. 移除旧的 DocumentRequest Pydantic 模型，因为现在请求参数是多部分表单 
+# class DocumentRequest(BaseModel): 
+#     ... 
+
+# 4. 重新定义API接口，使用 @app.post 装饰器 
+@app.post("/summarize-document/") 
+async def summarize_document( 
+    file: UploadFile = File(...), # 接收上传的文件 
+    question: str = Form(...), # 使用 Form 接收字符串参数 
+    llm_model_path: str = Form(...), 
+    embedding_model_path: str = Form(...), 
+    max_model_len: int = Form(40960), 
+    enable_thinking: bool = Form(True), 
+    chunk_size_chars: int = Form(1000), 
+    sheet_name: Optional[str] = Form(None) 
+): 
+    """ 
+    **API接口：文档上传与 RAG 总结** 
     
-    start_time = time.time() 
+    该接口接收一个上传的文件和问题，利用 RAG 技术对文档进行总结并回答问题。 
+    """ 
+    temp_file_path = None 
     try: 
-        # 初始化 summarizer，此时不加载模型 
+        # 在服务器上创建一个临时文件路径来保存上传的文件 
+        temp_dir = "temp_uploads" 
+        os.makedirs(temp_dir, exist_ok=True) 
+        temp_file_path = os.path.join(temp_dir, file.filename) 
+        
+        # 将上传的文件内容写入临时文件 
+        with open(temp_file_path, "wb") as buffer: 
+            contents = await file.read() # 使用 await 读取文件内容 
+            buffer.write(contents) 
+
+        # 实例化你的RAG摘要器 
         summarizer = AdvancedRAGSummarizer( 
             model_name_or_path=llm_model_path, 
-            embedding_model_name=embedding_model, 
-            enable_thinking=True 
+            embedding_model_name=embedding_model_path, 
+            max_model_len=max_model_len, 
+            enable_thinking=enable_thinking 
         ) 
-        # 执行整个流程，模型会在内部按需加载和卸载 
-        final_output = summarizer.process_document( 
-            file_to_process, 
+
+        # 调用你的核心处理方法，传入临时文件路径 
+        result = summarizer.process_document( 
+            temp_file_path, 
             question, 
-            chunk_size_chars=1000, 
-            sheet_name="Sheet1" if file_to_process.endswith(('.xlsx', '.xls')) else None 
+            chunk_size_chars, 
+            sheet_name 
         ) 
+
+        return {"message": "处理成功", "result": result} 
         
-        print("\n\n" + "="*25 + " **最终输出结果** " + "="*25) 
-        print(final_output) 
-        print("="*70) 
-        
+    except HTTPException as e: 
+        raise e 
     except Exception as e: 
-        print(f"\n处理过程中发生致命错误: {e}") 
-    
-    end_time = time.time() 
-    print(f"整个任务总用时: {end_time - start_time:.2f} 秒")
+        raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}") 
+    finally: 
+        # 任务完成后，记得删除临时文件 
+        if temp_file_path and os.path.exists(temp_file_path): 
+            os.remove(temp_file_path) 
+
+# ... (保留原有的 get_num_gpus_from_env 和 AdvancedRAGSummarizer 类) ... 
+
+if __name__ == "__main__": 
+    import uvicorn 
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 

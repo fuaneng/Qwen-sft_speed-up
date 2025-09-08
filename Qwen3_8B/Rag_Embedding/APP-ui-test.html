@@ -1,0 +1,128 @@
+<!DOCTYPE html> 
+<html lang="zh"> 
+<head> 
+    <meta charset="UTF-8"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>RAG 文档摘要与问答</title> 
+    <style> 
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f7f9; } 
+        .container { max-width: 900px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); } 
+        h1 { color: #333; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; } 
+        .form-group { margin-bottom: 15px; } 
+        label { display: block; margin-bottom: 5px; color: #555; font-weight: bold; } 
+        input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; } 
+        textarea { resize: vertical; height: 100px; } 
+        button { display: block; width: 100%; padding: 12px; background-color: #007bff; color: #fff; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s ease; } 
+        button:hover { background-color: #0056b3; } 
+        #loading { text-align: center; margin-top: 20px; font-size: 18px; color: #007bff; display: none; } 
+        #results { margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee; } 
+        pre { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.5; } 
+        .error { color: #dc3545; font-weight: bold; } 
+    </style> 
+</head> 
+<body> 
+
+<div class="container"> 
+    <h1>RAG 文档摘要与问答接口测试</h1> 
+    
+    <div class="form-group"> 
+        <label for="apiUrl">API 地址:</label> 
+        <input type="text" id="apiUrl" value="http://10.154.39.57:8000/summarize-document/"> 
+    </div> 
+
+    <div class="form-group"> 
+        <label for="fileInput">选择要上传的文档:</label> 
+        <input type="file" id="fileInput" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.txt,.md,.log"> 
+    </div> 
+
+    <div class="form-group"> 
+        <label for="question">问题:</label> 
+        <textarea id="question">总结不同维度不同分数的规律。</textarea> 
+    </div> 
+
+    <div class="form-group"> 
+        <label for="llmPath">LLM 模型路径 (服务器):</label> 
+        <input type="text" id="llmPath" value="/DATA/f60055380/Qwen3_8B_TL/Model/qwen3-8b-hf"> 
+    </div> 
+    
+    <div class="form-group"> 
+        <label for="embeddingPath">Embedding 模型路径 (服务器):</label> 
+        <input type="text" id="embeddingPath" value="/DATA/f60055380/Qwen3_8B_TL/Model/Qwen3-Embedding-8B"> 
+    </div> 
+
+    <button id="submitBtn">提交请求</button> 
+
+    <div id="loading">正在处理，请稍候...</div> 
+    
+    <div id="results"> 
+        <h2>结果:</h2> 
+        <pre id="apiResponse">等待结果...</pre> 
+    </div> 
+</div> 
+
+<script> 
+    document.getElementById('submitBtn').addEventListener('click', async () => { 
+        const fileInput = document.getElementById('fileInput'); 
+        const file = fileInput.files[0]; // 获取用户选择的第一个文件 
+
+        if (!file) { 
+            alert('请先选择一个文件！'); 
+            return; 
+        } 
+
+        const apiUrl = document.getElementById('apiUrl').value; 
+        const question = document.getElementById('question').value; 
+        const llmPath = document.getElementById('llmPath').value; 
+        const embeddingPath = document.getElementById('embeddingPath').value; 
+        
+        // 关键：使用 FormData 封装文件和其他数据 
+        const formData = new FormData(); 
+        formData.append("file", file); 
+        formData.append("question", question); 
+        formData.append("llm_model_path", llmPath); 
+        formData.append("embedding_model_path", embeddingPath); 
+        formData.append("max_model_len", 40960); 
+        formData.append("enable_thinking", true); 
+        formData.append("chunk_size_chars", 1000); 
+        formData.append("sheet_name", "Sheet1"); // 根据你的文件调整 
+
+        const loadingDiv = document.getElementById('loading'); 
+        const resultsDiv = document.getElementById('apiResponse'); 
+
+        loadingDiv.style.display = 'block'; 
+        resultsDiv.textContent = '正在等待 API 响应...'; 
+
+        try { 
+            // 使用 Fetch API 发送 POST 请求，body 为 FormData 
+            const response = await fetch(apiUrl, { 
+                method: 'POST', 
+                // 重要：不手动设置 Content-Type，让浏览器自动处理 FormData 
+                body: formData, 
+            }); 
+
+            if (!response.ok) { 
+                const errorData = await response.json(); 
+                throw new Error(`请求失败，状态码: ${response.status} - ${errorData.detail || response.statusText}`); 
+            } 
+
+            const data = await response.json(); 
+            
+            if (data.result) { 
+                resultsDiv.textContent = data.result; 
+            } else { 
+                resultsDiv.textContent = JSON.stringify(data, null, 2); 
+            } 
+
+        } catch (error) { 
+            console.error('Fetch error:', error); 
+            resultsDiv.textContent = `发生错误: ${error.message}`; 
+            resultsDiv.classList.add('error'); 
+        } finally { 
+            loadingDiv.style.display = 'none'; 
+        } 
+    }); 
+</script> 
+
+</body> 
+</html>
+
